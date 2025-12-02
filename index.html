@@ -262,6 +262,34 @@
             color: white;
         }
 
+        .assessment-option.correct-assess {
+            background: #56ab2f;
+            color: white;
+            border-color: #56ab2f;
+        }
+
+        .assessment-option.incorrect-assess {
+            background: #ff6b6b;
+            color: white;
+            border-color: #ff6b6b;
+        }
+
+        .assessment-option:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .filled-sentence {
+            font-size: 1.5em;
+            color: #56ab2f;
+            font-weight: bold;
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            border-left: 4px solid #56ab2f;
+        }
+
         .submit-btn {
             background: #56ab2f;
             color: white;
@@ -816,6 +844,8 @@
         let assessmentAnswers = {};
         let currentAttempt = 0; // Track attempts per question
         let hasSecondChance = true; // Track if second chance is available
+        let assessmentAttempts = {}; // Track attempts per assessment question
+        let assessmentCorrect = {}; // Track which assessment questions are correct
 
         // Sound generation functions
         function playCorrectSound() {
@@ -1146,6 +1176,8 @@
 
         function startAssessment() {
             assessmentAnswers = {};
+            assessmentAttempts = {};
+            assessmentCorrect = {};
             
             document.querySelector('.menu-screen').classList.remove('active');
             document.getElementById('assessmentScreen').classList.add('active');
@@ -1154,19 +1186,25 @@
             container.innerHTML = '';
             
             assessmentQuestions.forEach((q, index) => {
+                // Initialize tracking for this question
+                assessmentAttempts[index] = 0;
+                assessmentCorrect[index] = false;
+                
                 const questionDiv = document.createElement('div');
                 questionDiv.className = 'assessment-question';
+                questionDiv.id = `assess-q-${index}`;
                 questionDiv.innerHTML = `
-                    <div class="assessment-sentence">
+                    <div class="assessment-sentence" id="sentence-${index}">
                         ${index + 1}. ${q.sentence}
                     </div>
-                    <div class="assessment-options">
+                    <div class="assessment-options" id="options-${index}">
                         ${q.options.map(opt => 
                             `<button class="assessment-option" onclick="selectAnswer(${index}, '${opt}', this)">
                                 ${opt}
                             </button>`
                         ).join('')}
                     </div>
+                    <div class="filled-sentence" id="filled-${index}" style="display: none;"></div>
                 `;
                 container.appendChild(questionDiv);
             });
@@ -1175,24 +1213,120 @@
         }
 
         function selectAnswer(questionIndex, answer, btn) {
+            // Skip if already correct
+            if (assessmentCorrect[questionIndex]) {
+                return;
+            }
+            
+            const question = assessmentQuestions[questionIndex];
             const questionDiv = btn.closest('.assessment-question');
             const allOptions = questionDiv.querySelectorAll('.assessment-option');
+            const isCorrect = answer === question.answer;
             
-            allOptions.forEach(opt => opt.classList.remove('selected'));
-            btn.classList.add('selected');
-            btn.classList.add('pulse');
+            assessmentAttempts[questionIndex]++;
             
-            // Play a soft click sound
-            playEncouragementSound();
-            
-            assessmentAnswers[questionIndex] = answer;
-            updateAssessProgress();
+            if (isCorrect) {
+                // CORRECT ANSWER!
+                assessmentCorrect[questionIndex] = true;
+                assessmentAnswers[questionIndex] = answer;
+                
+                // Disable all buttons
+                allOptions.forEach(opt => {
+                    opt.disabled = true;
+                    opt.style.pointerEvents = 'none';
+                });
+                
+                // Mark correct button
+                btn.classList.remove('selected', 'incorrect-assess');
+                btn.classList.add('correct-assess', 'bounce');
+                
+                // Play success sound
+                playCorrectSound();
+                
+                // Show the completed sentence
+                const filledDiv = document.getElementById(`filled-${questionIndex}`);
+                const completeSentence = question.sentence.replace('_____', `<strong>${answer}</strong>`);
+                filledDiv.innerHTML = `✓ ${completeSentence}`;
+                filledDiv.style.display = 'block';
+                filledDiv.classList.add('pulse');
+                
+                // Update progress
+                updateAssessProgress();
+                
+                // Check if all questions are answered correctly
+                checkAssessmentCompletion();
+                
+            } else {
+                // INCORRECT ANSWER
+                btn.classList.add('incorrect-assess', 'shake');
+                
+                // Play incorrect sound
+                playIncorrectSound();
+                
+                if (assessmentAttempts[questionIndex] === 1) {
+                    // FIRST ATTEMPT - Give second chance
+                    btn.disabled = true;
+                    btn.style.pointerEvents = 'none';
+                    btn.style.opacity = '0.5';
+                    
+                    // Keep other buttons active
+                    allOptions.forEach(opt => {
+                        if (opt !== btn && !opt.disabled) {
+                            opt.style.pointerEvents = 'auto';
+                        }
+                    });
+                    
+                    // Show encouragement (could add a small message if desired)
+                    setTimeout(() => {
+                        btn.classList.remove('shake');
+                    }, 500);
+                    
+                } else {
+                    // SECOND ATTEMPT FAILED - Show correct answer
+                    allOptions.forEach(opt => {
+                        opt.disabled = true;
+                        opt.style.pointerEvents = 'none';
+                        
+                        if (opt.textContent.trim() === question.answer) {
+                            opt.classList.add('correct-assess', 'pulse');
+                        }
+                    });
+                    
+                    // Show the completed sentence with correct answer
+                    const filledDiv = document.getElementById(`filled-${questionIndex}`);
+                    const completeSentence = question.sentence.replace('_____', `<strong>${question.answer}</strong>`);
+                    filledDiv.innerHTML = `💡 Correct answer: ${completeSentence}`;
+                    filledDiv.style.display = 'block';
+                    filledDiv.style.background = '#fff3e0';
+                    filledDiv.style.borderLeftColor = '#ff9800';
+                    filledDiv.style.color = '#e65100';
+                    
+                    // Mark as answered (but not correct for scoring)
+                    assessmentAnswers[questionIndex] = question.answer; // Store correct answer for progress
+                    updateAssessProgress();
+                    
+                    // Check if all questions are completed
+                    checkAssessmentCompletion();
+                }
+            }
+        }
+        
+        function checkAssessmentCompletion() {
+            const totalAnswered = Object.keys(assessmentAnswers).length;
+            if (totalAnswered === assessmentQuestions.length) {
+                // All questions have been attempted, show submit button prominently
+                const submitBtn = document.querySelector('.submit-btn');
+                submitBtn.classList.add('pulse');
+                submitBtn.style.background = 'linear-gradient(135deg, #56ab2f 0%, #a8e063 100%)';
+                submitBtn.textContent = '🎉 Submit Assessment - All Done!';
+            }
         }
 
         function updateAssessProgress() {
-            const answered = Object.keys(assessmentAnswers).length;
+            const totalAnswered = Object.keys(assessmentAnswers).length;
+            const totalCorrect = Object.values(assessmentCorrect).filter(c => c).length;
             document.getElementById('assessProgress').textContent = 
-                `Answered: ${answered}/${assessmentQuestions.length}`;
+                `Completed: ${totalAnswered}/${assessmentQuestions.length} | Correct: ${totalCorrect}/${assessmentQuestions.length}`;
         }
 
         function submitAssessment() {
@@ -1205,16 +1339,16 @@
             const results = [];
             
             assessmentQuestions.forEach((q, index) => {
-                const userAnswer = assessmentAnswers[index];
-                const isCorrect = userAnswer === q.answer;
+                const isCorrect = assessmentCorrect[index]; // Use the tracking variable
+                const attempts = assessmentAttempts[index];
                 
                 if (isCorrect) correct++;
                 
                 results.push({
                     question: q.sentence,
-                    userAnswer: userAnswer,
                     correctAnswer: q.answer,
-                    isCorrect: isCorrect
+                    isCorrect: isCorrect,
+                    attempts: attempts
                 });
             });
             
@@ -1257,10 +1391,15 @@
             results.forEach((r, index) => {
                 const resultDiv = document.createElement('div');
                 resultDiv.className = `result-item ${r.isCorrect ? 'correct-answer' : 'wrong-answer'}`;
+                
+                const completeSentence = r.question.replace('_____', `<strong>${r.correctAnswer}</strong>`);
+                const attemptText = r.isCorrect ? 
+                    (r.attempts === 1 ? '(First try! ⭐)' : '(Second try ✓)') : 
+                    `(Needs practice)`;
+                
                 resultDiv.innerHTML = `
-                    <strong>${index + 1}. ${r.question}</strong><br>
-                    Your answer: <strong>${r.userAnswer}</strong> ${r.isCorrect ? '✓' : '✗'}<br>
-                    ${!r.isCorrect ? `Correct answer: <strong>${r.correctAnswer}</strong>` : ''}
+                    <strong>${index + 1}.</strong> ${completeSentence} ${r.isCorrect ? '✓' : '✗'}<br>
+                    <small style="color: #666;">${attemptText}</small>
                 `;
                 resultsList.appendChild(resultDiv);
             });
