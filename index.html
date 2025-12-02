@@ -328,9 +328,84 @@
             text-align: center;
             font-weight: bold;
         }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes confetti {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(500px) rotate(720deg); opacity: 0; }
+        }
+
+        .bounce {
+            animation: bounce 0.5s ease;
+        }
+
+        .shake {
+            animation: shake 0.5s ease;
+        }
+
+        .pulse {
+            animation: pulse 0.6s ease;
+        }
+
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            animation: confetti 3s linear;
+        }
+
+        .try-again {
+            background: #ffa500;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            cursor: pointer;
+            margin: 15px auto;
+            display: block;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            transition: all 0.3s;
+        }
+
+        .try-again:hover {
+            background: #ff8c00;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
+    <div class="confetti-container" id="confettiContainer"></div>
     <div class="container">
         <div class="menu-screen active">
             <h1>🌟 Singular & Plural Nouns 🌟</h1>
@@ -577,93 +652,6 @@
                 hint: "ONE cat"
             },
             {
-                question: "The dogs _____ playing.",
-                image: "🐶🐶",
-                answer: "are",
-                options: ["is", "are"],
-                hint: "TWO dogs"
-            },
-            {
-                question: "My book _____ on the desk.",
-                image: "📚",
-                answer: "is",
-                options: ["is", "are"],
-                hint: "ONE book"
-            },
-            {
-                question: "The birds _____ singing.",
-                image: "🐦🐦🐦",
-                answer: "are",
-                options: ["is", "are"],
-                hint: "THREE birds"
-            },
-            {
-                question: "The flower _____ pretty.",
-                image: "🌸",
-                answer: "is",
-                options: ["is", "are"],
-                hint: "ONE flower"
-            },
-            {
-                question: "My shoes _____ new.",
-                image: "👟👟",
-                answer: "are",
-                options: ["is", "are"],
-                hint: "TWO shoes"
-            },
-            {
-                question: "The apple _____ red.",
-                image: "🍎",
-                answer: "is",
-                options: ["is", "are"],
-                hint: "ONE apple"
-            },
-            {
-                question: "The stars _____ bright.",
-                image: "⭐⭐⭐⭐",
-                answer: "are",
-                options: ["is", "are"],
-                hint: "MANY stars"
-            },
-            {
-                question: "The baby _____ crying.",
-                image: "👶",
-                answer: "is",
-                options: ["is", "are"],
-                hint: "ONE baby"
-            },
-            {
-                question: "The children _____ happy.",
-                image: "👧👦👧",
-                answer: "are",
-                options: ["is", "are"],
-                hint: "MORE THAN ONE"
-            },
-            {
-                question: "My pencil _____ yellow.",
-                image: "✏️",
-                answer: "is",
-                options: ["is", "are"],
-                hint: "ONE pencil"
-            },
-            {
-                question: "The cookies _____ delicious.",
-                image: "🍪🍪🍪",
-                answer: "are",
-                options: ["is", "are"],
-                hint: "MANY cookies"
-            }
-        ];
-
-        const level4Questions = [
-            {
-                question: "The cat _____ sleeping.",
-                image: "🐱",
-                answer: "is",
-                options: ["is", "are"],
-                hint: "ONE cat"
-            },
-            {
                 question: "The dogs _____ running.",
                 image: "🐶🐶",
                 answer: "are",
@@ -826,6 +814,95 @@
         let score = 0;
         let answeredQuestions = 0;
         let assessmentAnswers = {};
+        let currentAttempt = 0; // Track attempts per question
+        let hasSecondChance = true; // Track if second chance is available
+
+        // Sound generation functions
+        function playCorrectSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Play a happy ascending tone
+            const frequencies = [523.25, 659.25, 783.99]; // C, E, G notes
+            frequencies.forEach((freq, index) => {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = freq;
+                oscillator.type = 'sine';
+                
+                const startTime = audioContext.currentTime + (index * 0.1);
+                gainNode.gain.setValueAtTime(0.3, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+                
+                oscillator.start(startTime);
+                oscillator.stop(startTime + 0.3);
+            });
+        }
+
+        function playIncorrectSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Play a gentle "try again" sound
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 200; // Low tone
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+
+        function playEncouragementSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Play encouraging two-note sound
+            const frequencies = [440, 554.37]; // A, C#
+            frequencies.forEach((freq, index) => {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = freq;
+                oscillator.type = 'triangle';
+                
+                const startTime = audioContext.currentTime + (index * 0.15);
+                gainNode.gain.setValueAtTime(0.2, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+                
+                oscillator.start(startTime);
+                oscillator.stop(startTime + 0.3);
+            });
+        }
+
+        function createConfetti() {
+            const container = document.getElementById('confettiContainer');
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe', '#fd79a8', '#fdcb6e'];
+            
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+                    container.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 3000);
+                }, i * 30);
+            }
+        }
 
         function startLevel(level) {
             currentLevel = level;
@@ -869,6 +946,10 @@
             
             document.getElementById('question').textContent = question.question;
             
+            // Reset attempts for new question
+            currentAttempt = 0;
+            hasSecondChance = true;
+            
             // Add special instruction for Level 4
             if (currentLevel === 4 && currentQuestionIndex === 0) {
                 const instructionDiv = document.createElement('div');
@@ -904,40 +985,131 @@
         function checkAnswer(selected, btn) {
             const question = currentQuestions[currentQuestionIndex];
             const allButtons = document.querySelectorAll('.option-btn');
+            const feedbackDiv = document.getElementById('feedback');
             
-            allButtons.forEach(b => b.style.pointerEvents = 'none');
-            
-            answeredQuestions++;
+            currentAttempt++;
             
             if (selected === question.answer) {
+                // CORRECT ANSWER!
+                allButtons.forEach(b => b.style.pointerEvents = 'none');
                 btn.classList.add('correct');
-                document.getElementById('feedback').textContent = '🎉 Excellent! That\'s correct!';
-                document.getElementById('feedback').className = 'feedback correct';
-                score++;
-            } else {
-                btn.classList.add('incorrect');
-                document.getElementById('feedback').textContent = `❌ Not quite. The answer is "${question.answer}".`;
-                document.getElementById('feedback').className = 'feedback incorrect';
+                btn.classList.add('bounce');
                 
-                allButtons.forEach(b => {
-                    if (b.textContent === question.answer) {
-                        b.classList.add('correct');
-                    }
-                });
-            }
-            
-            document.getElementById('score').textContent = `Score: ${score}/${answeredQuestions}`;
-            
-            if (currentQuestionIndex < currentQuestions.length - 1) {
-                document.getElementById('nextBtn').style.display = 'inline-block';
+                // Play success sound
+                playCorrectSound();
+                
+                // Create confetti
+                createConfetti();
+                
+                // Show encouraging feedback based on attempt
+                if (currentAttempt === 1) {
+                    feedbackDiv.textContent = '🎉 Excellent! Perfect on the first try!';
+                    answeredQuestions++;
+                    score++;
+                } else {
+                    feedbackDiv.textContent = '⭐ Great job! You got it!';
+                    answeredQuestions++;
+                    score++;
+                }
+                
+                feedbackDiv.className = 'feedback correct pulse';
+                document.getElementById('score').textContent = `Score: ${score}/${answeredQuestions}`;
+                
+                // Show next button or complete level
+                if (currentQuestionIndex < currentQuestions.length - 1) {
+                    setTimeout(() => {
+                        document.getElementById('nextBtn').style.display = 'inline-block';
+                        document.getElementById('nextBtn').classList.add('pulse');
+                    }, 1000);
+                } else {
+                    setTimeout(() => {
+                        showLevelComplete();
+                    }, 2000);
+                }
+                
             } else {
-                setTimeout(() => {
-                    showLevelComplete();
-                }, 2000);
+                // INCORRECT ANSWER
+                btn.classList.add('incorrect');
+                btn.classList.add('shake');
+                
+                if (currentAttempt === 1 && hasSecondChance) {
+                    // FIRST ATTEMPT - Give second chance
+                    playIncorrectSound();
+                    
+                    feedbackDiv.textContent = '🤔 Not quite! Try again - you can do it!';
+                    feedbackDiv.className = 'feedback incorrect';
+                    
+                    // Disable the wrong button but keep others active
+                    btn.style.pointerEvents = 'none';
+                    btn.style.opacity = '0.5';
+                    
+                    // Keep other buttons clickable
+                    allButtons.forEach(b => {
+                        if (b !== btn) {
+                            b.style.pointerEvents = 'auto';
+                        }
+                    });
+                    
+                    // Create a "Try Again!" button
+                    const tryAgainBtn = document.createElement('button');
+                    tryAgainBtn.className = 'try-again pulse';
+                    tryAgainBtn.textContent = '🔄 Try Again!';
+                    tryAgainBtn.onclick = () => {
+                        playEncouragementSound();
+                        feedbackDiv.textContent = '💪 You\'ve got this! Choose again!';
+                        tryAgainBtn.remove();
+                    };
+                    
+                    setTimeout(() => {
+                        document.querySelector('.question-card').appendChild(tryAgainBtn);
+                    }, 500);
+                    
+                } else {
+                    // SECOND ATTEMPT or no second chance - Show correct answer
+                    playIncorrectSound();
+                    allButtons.forEach(b => b.style.pointerEvents = 'none');
+                    
+                    if (currentAttempt === 1) {
+                        answeredQuestions++;
+                    }
+                    
+                    feedbackDiv.textContent = `💡 The correct answer is "${question.answer}". Let's keep learning!`;
+                    feedbackDiv.className = 'feedback incorrect';
+                    
+                    // Highlight the correct answer
+                    allButtons.forEach(b => {
+                        if (b.textContent === question.answer) {
+                            b.classList.add('correct');
+                            b.classList.add('pulse');
+                        }
+                    });
+                    
+                    document.getElementById('score').textContent = `Score: ${score}/${answeredQuestions}`;
+                    
+                    // Show next button or complete level
+                    if (currentQuestionIndex < currentQuestions.length - 1) {
+                        setTimeout(() => {
+                            document.getElementById('nextBtn').style.display = 'inline-block';
+                        }, 2000);
+                    } else {
+                        setTimeout(() => {
+                            showLevelComplete();
+                        }, 2500);
+                    }
+                }
             }
         }
 
         function nextQuestion() {
+            // Remove any "Try Again" buttons
+            const tryAgainBtn = document.querySelector('.try-again');
+            if (tryAgainBtn) {
+                tryAgainBtn.remove();
+            }
+            
+            // Clean up animation classes
+            document.getElementById('nextBtn').classList.remove('pulse');
+            
             currentQuestionIndex++;
             if (currentQuestionIndex < currentQuestions.length) {
                 showQuestion();
@@ -964,8 +1136,12 @@
             document.getElementById('imageContainer').innerHTML = `<div class="celebration">${emoji}</div>`;
             document.getElementById('options').innerHTML = '';
             document.getElementById('feedback').textContent = message;
-            document.getElementById('feedback').className = 'feedback correct';
+            document.getElementById('feedback').className = 'feedback correct pulse';
             document.getElementById('nextBtn').style.display = 'none';
+            
+            // Play celebration sound and create confetti
+            playCorrectSound();
+            setTimeout(() => createConfetti(), 300);
         }
 
         function startAssessment() {
@@ -1004,6 +1180,10 @@
             
             allOptions.forEach(opt => opt.classList.remove('selected'));
             btn.classList.add('selected');
+            btn.classList.add('pulse');
+            
+            // Play a soft click sound
+            playEncouragementSound();
             
             assessmentAnswers[questionIndex] = answer;
             updateAssessProgress();
@@ -1059,8 +1239,17 @@
             }
             
             document.getElementById('celebration').textContent = emoji;
+            document.getElementById('celebration').className = 'celebration pulse';
             document.getElementById('finalScore').textContent = 
                 `You got ${correct} out of ${assessmentQuestions.length} correct! (${percentage}%)`;
+            
+            // Play celebration sound and confetti for good scores
+            if (percentage >= 70) {
+                playCorrectSound();
+                createConfetti();
+            } else {
+                playEncouragementSound();
+            }
             
             const resultsList = document.getElementById('resultsList');
             resultsList.innerHTML = '<h3 style="margin: 20px 0;">Your Answers:</h3>';
